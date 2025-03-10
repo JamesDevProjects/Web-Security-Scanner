@@ -2,13 +2,15 @@ import requests
 from bs4 import BeautifulSoup
 import sys
 
-# List of security headers that should be present
+# Disable SSL warnings
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 SECURITY_HEADERS = [
     "Strict-Transport-Security", "Content-Security-Policy", "X-Frame-Options",
     "X-XSS-Protection", "X-Content-Type-Options", "Referrer-Policy"
 ]
 
-# Common sensitive directories to check
 COMMON_DIRECTORIES = [
     "admin", "login", "backup", "config", ".git", "phpmyadmin", "wp-admin"
 ]
@@ -16,9 +18,9 @@ COMMON_DIRECTORIES = [
 def check_security_headers(url):
     """Checks for missing security headers in the response."""
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=5, verify=False)  # Ignore SSL errors
         missing_headers = [header for header in SECURITY_HEADERS if header not in response.headers]
-        
+
         if missing_headers:
             print("\nMissing Security Headers:")
             for header in missing_headers:
@@ -42,10 +44,12 @@ def check_exposed_directories(url):
     
     for directory in COMMON_DIRECTORIES:
         test_url = f"{url.rstrip('/')}/{directory}"
-        response = requests.get(test_url, allow_redirects=False)
-        
-        if response.status_code == 200:
-            found_directories.append(test_url)
+        try:
+            response = requests.get(test_url, allow_redirects=False, verify=False)  # Ignore SSL errors
+            if response.status_code == 200:
+                found_directories.append(test_url)
+        except requests.exceptions.RequestException:
+            continue
 
     if found_directories:
         print("Potentially exposed directories found:")
